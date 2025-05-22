@@ -8,7 +8,7 @@ import (
 	"github.com/openai/openai-go"
 )
 
-func toolCallsHandler(toolCalls []openai.ChatCompletionMessageToolCall, s *discordgo.Session, m *discordgo.MessageCreate) {
+func toolCallsHandler(params *openai.ChatCompletionNewParams, toolCalls []openai.ChatCompletionMessageToolCall, s *discordgo.Session, m *discordgo.MessageCreate) {
 	for _, toolCall := range toolCalls {
 		var args map[string]interface{}
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
@@ -42,5 +42,5 @@ func toolCallsHandler(toolCalls []openai.ChatCompletionMessageToolCall, s *disco
 		params.Messages = append(params.Messages, openai.ToolMessage(toolCallResponse, toolCall.ID))
 	}
 
-	createCompletion(s, m)
+	createCompletion(params, s, m)
 }

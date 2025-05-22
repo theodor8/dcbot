@@ -10,6 +10,7 @@ import (
 )
 
 var log = logrus.New()
+var dg *discordgo.Session = nil
 
 func main() {
 
@@ -18,7 +19,8 @@ func main() {
 		log.Fatal("No token provided. Please set the DISCORD_TOKEN environment variable.")
 	}
 
-	dg, err := discordgo.New("Bot " + token)
+	var err error
+	dg, err = discordgo.New("Bot " + token)
 	if err != nil {
 		log.Fatal("error creating Discord session:", err)
 	}

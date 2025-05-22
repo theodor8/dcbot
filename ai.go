@@ -27,59 +27,61 @@ var client = openai.NewClient(
 	option.WithBaseURL(os.Getenv("URL")),
 )
 
-var params = openai.ChatCompletionNewParams{
-	Model: os.Getenv("MODEL"),
-	Messages: []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(systemMessage),
-	},
-	Tools: []openai.ChatCompletionToolParam{
-		{
-			Function: openai.FunctionDefinitionParam{
-				Name:        "do_nothing",
-				Description: openai.String("Do nothing"),
-			},
+func newParams() *openai.ChatCompletionNewParams {
+	return &openai.ChatCompletionNewParams{
+		Model: os.Getenv("MODEL"),
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.SystemMessage(systemMessage),
 		},
-		{
-			Function: openai.FunctionDefinitionParam{
-				Name:        "set_status",
-				Description: openai.String("Set your status"),
-				Parameters: openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"status": map[string]string{
-							"type": "string",
+		Tools: []openai.ChatCompletionToolParam{
+			{
+				Function: openai.FunctionDefinitionParam{
+					Name:        "do_nothing",
+					Description: openai.String("Do nothing"),
+				},
+			},
+			{
+				Function: openai.FunctionDefinitionParam{
+					Name:        "set_status",
+					Description: openai.String("Set your status"),
+					Parameters: openai.FunctionParameters{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"status": map[string]string{
+								"type": "string",
+							},
 						},
+						"required": []string{"status"},
 					},
-					"required": []string{"status"},
+				},
+			},
+			{
+				Function: openai.FunctionDefinitionParam{
+					Name:        "set_username",
+					Description: openai.String("Set your username"),
+					Parameters: openai.FunctionParameters{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"username": map[string]string{
+								"type": "string",
+							},
+						},
+						"required": []string{"username"},
+					},
+				},
+			},
+			{
+				Function: openai.FunctionDefinitionParam{
+					Name:        "get_sender_username",
+					Description: openai.String("Get the username of the sender"),
 				},
 			},
 		},
-		{
-			Function: openai.FunctionDefinitionParam{
-				Name:        "set_username",
-				Description: openai.String("Set your username"),
-				Parameters: openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"username": map[string]string{
-							"type": "string",
-						},
-					},
-					"required": []string{"username"},
-				},
-			},
-		},
-		{
-			Function: openai.FunctionDefinitionParam{
-				Name:        "get_sender_username",
-				Description: openai.String("Get the username of the sender"),
-			},
-		},
-	},
+	}
 }
 
-func startStreaming(s *discordgo.Session, m *discordgo.MessageCreate) openai.ChatCompletionAccumulator {
-	stream := client.Chat.Completions.NewStreaming(context.TODO(), params)
+func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) openai.ChatCompletionAccumulator {
+	stream := client.Chat.Completions.NewStreaming(context.TODO(), *params)
 	acc := openai.ChatCompletionAccumulator{}
 	var message *discordgo.Message = nil
 	var ticker *time.Ticker = nil
@@ -131,8 +133,8 @@ func startStreaming(s *discordgo.Session, m *discordgo.MessageCreate) openai.Cha
 	return acc
 }
 
-func createCompletion(s *discordgo.Session, m *discordgo.MessageCreate) {
-	completion := startStreaming(s, m)
+func createCompletion(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) {
+	completion := startStreaming(params, s, m)
 
 	log.Infof("Prompt tokens: %v, completion tokens: %v", completion.Usage.PromptTokens, completion.Usage.CompletionTokens)
 
@@ -140,7 +142,7 @@ func createCompletion(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	toolCalls := completion.Choices[0].Message.ToolCalls
 	if len(toolCalls) > 0 {
-		toolCallsHandler(toolCalls, s, m)
+		toolCallsHandler(params, toolCalls, s, m)
 		return
 	}
 }
