@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 
 	"github.com/bwmarrin/discordgo"
@@ -43,11 +42,5 @@ func toolCallsHandler(toolCalls []openai.ChatCompletionMessageToolCall, s *disco
 		params.Messages = append(params.Messages, openai.ToolMessage(toolCallResponse, toolCall.ID))
 	}
 
-	completion, err := client.Chat.Completions.New(context.TODO(), params)
-	if err != nil {
-		log.Error("Error calling AI API: ", err)
-		return
-	}
-
-	completionHandler(completion, s, m)
+	createCompletion(s, m)
 }

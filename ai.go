@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/openai/openai-go"
@@ -20,13 +21,13 @@ var systemMessage = `Du är en discord bot. Du ska svara på frågor och ge info
 
 Strukturera svaret tydligt med rubriker (#, ##, ###) och listor (-, *, 1.) där det passar. Håll språket tydligt, koncist och anpassat för Discord.`
 
-
 var client = openai.NewClient(
 	option.WithAPIKey(os.Getenv("API_KEY")),
 	option.WithBaseURL(os.Getenv("URL")),
 )
 
 var params = openai.ChatCompletionNewParams{
+	Model: os.Getenv("MODEL"),
 	Messages: []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(systemMessage),
 	},
@@ -74,10 +75,15 @@ var params = openai.ChatCompletionNewParams{
 			},
 		},
 	},
-	Model: os.Getenv("MODEL"),
 }
 
-func completionHandler(completion *openai.ChatCompletion, s *discordgo.Session, m *discordgo.MessageCreate) {
+func createCompletion(s *discordgo.Session, m *discordgo.MessageCreate) {
+	completion, err := client.Chat.Completions.New(context.TODO(), params)
+	if err != nil {
+		log.Error("Error calling AI API: ", err)
+		return
+	}
+
 	log.Infof("Prompt tokens: %v, completion tokens: %v", completion.Usage.PromptTokens, completion.Usage.CompletionTokens)
 
 	if len(completion.Choices) != 1 {
@@ -92,6 +98,5 @@ func completionHandler(completion *openai.ChatCompletion, s *discordgo.Session, 
 		return
 	}
 
-	s.ChannelTyping(m.ChannelID)
 	s.ChannelMessageSend(m.ChannelID, completion.Choices[0].Message.Content)
 }

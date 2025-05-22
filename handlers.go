@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-
 	"github.com/bwmarrin/discordgo"
 
 	"github.com/openai/openai-go"
@@ -15,15 +13,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	s.ChannelTyping(m.ChannelID)
+
 	userMessage := openai.UserMessage(m.Content)
 	userMessage.OfUser.Name = param.NewOpt(m.Author.Username)
 	params.Messages = append(params.Messages, userMessage)
 
-	completion, err := client.Chat.Completions.New(context.TODO(), params)
-	if err != nil {
-		log.Error("Error calling AI API: ", err)
-		return
-	}
-
-	completionHandler(completion, s, m)
+	createCompletion(s, m)
 }
