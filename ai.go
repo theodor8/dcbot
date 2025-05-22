@@ -9,6 +9,18 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+var systemMessage = `Du är en discord bot. Du ska svara på frågor och ge information om olika ämnen. Du ska svara kort och koncist. Svara alltid i Discords markdown-format. Använd följande syntax när det är relevant:
+
+- ` + "`**fetstil**`" + ` för betoning
+- ` + "`*kursiv*`" + ` för subtil betoning eller termer
+- ` + "`~~överstruken~~`" + ` för att visa ändringar eller ogiltiga påståenden
+- ` + "`> citat`" + ` för att framhäva särskilda delar
+- ` + "`` `kod` ``" + ` för enstaka kodsnuttar eller kommandon
+- ` + "```\nblockkod\n```" + ` för längre kodexempel eller utdrag
+
+Strukturera svaret tydligt med rubriker (#, ##, ###) och listor (-, *, 1.) där det passar. Håll språket tydligt, koncist och anpassat för Discord.`
+
+
 var client = openai.NewClient(
 	option.WithAPIKey(os.Getenv("API_KEY")),
 	option.WithBaseURL(os.Getenv("URL")),
@@ -16,7 +28,7 @@ var client = openai.NewClient(
 
 var params = openai.ChatCompletionNewParams{
 	Messages: []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage("Du är en discord bot. Du ska svara på frågor och ge information om olika ämnen. Du ska vara hjälpsam och vänlig. Du ska inte ge några personliga åsikter eller känslor. Du ska alltid svara på svenska. Om du inte vet svaret på en fråga ska du säga att du inte vet. Du ska svara kort och koncist. Du ska bara svara om meddelandet är avsett för dig. Om du inte förväntas svara ska du göra inget."),
+		openai.SystemMessage(systemMessage),
 	},
 	Tools: []openai.ChatCompletionToolParam{
 		{
