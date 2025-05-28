@@ -25,6 +25,10 @@ func main() {
 		log.Fatal("error creating Discord session:", err)
 	}
 
+	dg.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
+		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+	})
+
 	dg.AddHandler(messageCreate)
 
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
@@ -35,11 +39,8 @@ func main() {
 	}
 	defer dg.Close()
 
-	log.Info("Bot is now running. Press CTRL+C to exit.")
-
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
-
 	log.Info("Gracefully shutting down...")
 }
