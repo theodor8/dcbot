@@ -14,6 +14,10 @@ var dg *discordgo.Session = nil
 
 func main() {
 
+	log.SetFormatter(&logrus.TextFormatter{
+		ForceColors: true,
+	})
+
 	token := os.Getenv("DISCORD_TOKEN")
 	if token == "" {
 		log.Fatal("No token provided. Please set the DISCORD_TOKEN environment variable.")

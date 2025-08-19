@@ -15,6 +15,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	log.Info("Message received by: ", m.Author.Username)
+
 	messages, err := s.ChannelMessages(m.ChannelID, 20, "", "", "")
 	if err != nil {
 		log.Error("Error fetching messages: ", err)

@@ -101,9 +101,8 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 		if err != nil {
 			log.Error("Error sending message: ", err)
 		}
-		ticker = time.NewTicker(600 * time.Millisecond)
+		ticker = time.NewTicker(500 * time.Millisecond)
 		go func() {
-			log.Info("Ticker started")
 			editMessage := func() {
 				message, err = s.ChannelMessageEdit(m.ChannelID, message.ID, acc.Choices[0].Message.Content)
 				if err != nil {
@@ -115,14 +114,12 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 				case <-done:
 					editMessage()
 					ticker.Stop()
-					log.Info("Ticker stopped")
 					return
 				case <-ticker.C:
 					editMessage()
 				}
 			}
 		}()
-
 	}
 	if ticker != nil {
 		done <- true
