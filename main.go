@@ -10,41 +10,95 @@ import (
 )
 
 var log = logrus.New()
-var dg *discordgo.Session = nil
+var s *discordgo.Session = nil
+var stop chan os.Signal
 
-func main() {
+var commands = []*discordgo.ApplicationCommand{
+	{
+		Name:        "exit",
+		Description: "Exits the bot",
+	},
+}
+var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
+	"exit": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		log.Info("exiting bot...")
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "Exiting bot...",
+			},
+		})
+		stop <- syscall.SIGINT
+	},
+}
 
+func deleteCommands(s *discordgo.Session) {
+	log.Info("deleting all application commands...")
+	commands, err := s.ApplicationCommands(s.State.User.ID, "")
+	if err != nil {
+		log.Error("error fetching commands:", err)
+		return
+	}
+
+	for _, cmd := range commands {
+		err = s.ApplicationCommandDelete(s.State.User.ID, "", cmd.ID)
+		if err != nil {
+			log.Error("error deleting command:", err)
+		} else {
+			log.Infof("deleted command: %s", cmd.Name)
+		}
+	}
+}
+
+func init() {
 	log.SetFormatter(&logrus.TextFormatter{
 		ForceColors: true,
 	})
 
 	token := os.Getenv("DISCORD_TOKEN")
 	if token == "" {
-		log.Fatal("No token provided. Please set the DISCORD_TOKEN environment variable.")
+		log.Fatal("no DISCORD_TOKEN environment variable found")
 	}
 
 	var err error
-	dg, err = discordgo.New("Bot " + token)
+	s, err = discordgo.New("Bot " + token)
 	if err != nil {
 		log.Fatal("error creating Discord session:", err)
 	}
 
-	dg.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
+	s.Identify.Intents = discordgo.IntentsGuildMessages
+
+	s.AddHandler(messageCreate)
+
+	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if handler, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
+			handler(s, i)
+		}
+	})
+}
+
+func main() {
+	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
+		log.Printf("logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
 
-	dg.AddHandler(messageCreate)
-
-	dg.Identify.Intents = discordgo.IntentsGuildMessages
-
-	err = dg.Open()
+	err := s.Open()
 	if err != nil {
-		log.Fatal("error opening connection:", err)
+		log.Fatal("error opening Discord connection:", err)
 	}
-	defer dg.Close()
+	defer s.Close()
 
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	<-sc
-	log.Info("Gracefully shutting down...")
+	log.Info("adding commands...")
+	for _, v := range commands {
+		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", v)
+		if err != nil {
+			log.Panicf("cannot create '%v' command: %v", v.Name, err)
+		}
+	}
+
+	stop = make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	<-stop
+	log.Info("gracefully shutting down...")
+	// deleteCommands(s)
 }

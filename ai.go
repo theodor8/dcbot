@@ -46,7 +46,7 @@ func newParams() *openai.ChatCompletionNewParams {
 					Description: openai.String("Set your status"),
 					Parameters: openai.FunctionParameters{
 						"type": "object",
-						"properties": map[string]interface{}{
+						"properties": map[string]any{
 							"status": map[string]string{
 								"type": "string",
 							},
@@ -61,7 +61,7 @@ func newParams() *openai.ChatCompletionNewParams {
 					Description: openai.String("Set your username"),
 					Parameters: openai.FunctionParameters{
 						"type": "object",
-						"properties": map[string]interface{}{
+						"properties": map[string]any{
 							"username": map[string]string{
 								"type": "string",
 							},
@@ -81,6 +81,7 @@ func newParams() *openai.ChatCompletionNewParams {
 }
 
 func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) openai.ChatCompletionAccumulator {
+	// TODO: refactor
 	stream := client.Chat.Completions.NewStreaming(context.TODO(), *params)
 	acc := openai.ChatCompletionAccumulator{}
 	var message *discordgo.Message = nil
@@ -89,7 +90,7 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 	for stream.Next() {
 		chunk := stream.Current()
 		if !acc.AddChunk(chunk) {
-			log.Error("Error adding chunk: ", stream.Err())
+			log.Error("error adding chunk: ", stream.Err())
 		}
 
 		if len(chunk.Choices) == 0 || chunk.Choices[0].Delta.Content == "" || message != nil {
@@ -99,14 +100,14 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 		var err error
 		message, err = s.ChannelMessageSend(m.ChannelID, acc.Choices[0].Message.Content)
 		if err != nil {
-			log.Error("Error sending message: ", err)
+			log.Error("error sending message: ", err)
 		}
 		ticker = time.NewTicker(800 * time.Millisecond)
 		go func() {
 			editMessage := func() {
 				message, err = s.ChannelMessageEdit(m.ChannelID, message.ID, acc.Choices[0].Message.Content)
 				if err != nil {
-					log.Error("Error editing message: ", err)
+					log.Error("error editing message: ", err)
 				}
 			}
 			for {
@@ -125,7 +126,7 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 		done <- true
 	}
 	if stream.Err() != nil {
-		log.Error("Error streaming completion: ", stream.Err())
+		log.Error("error streaming completion: ", stream.Err())
 	}
 	return acc
 }
@@ -133,7 +134,7 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 func createCompletion(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) {
 	completion := startStreaming(params, s, m)
 
-	log.Infof("Prompt tokens: %v, completion tokens: %v", completion.Usage.PromptTokens, completion.Usage.CompletionTokens)
+	log.Infof("prompt tokens: %v, completion tokens: %v", completion.Usage.PromptTokens, completion.Usage.CompletionTokens)
 
 	params.Messages = append(params.Messages, completion.Choices[0].Message.ToParam())
 
