@@ -18,6 +18,10 @@ var commands = []*discordgo.ApplicationCommand{
 		Name:        "exit",
 		Description: "Exits the bot",
 	},
+	{
+		Name: "bal",
+		Description: "Check your balance",
+	},
 }
 var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 	"exit": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -29,6 +33,14 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 			},
 		})
 		stop <- syscall.SIGINT
+	},
+	"bal": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: getUserBalance(),
+			},
+		})
 	},
 }
 
