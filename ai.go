@@ -25,7 +25,7 @@ You are a Discord bot. You should answer questions and provide information on va
 - ` + "```\ncode block\n```" + ` for longer code examples or snippets
 Structure the response clearly using headings (#, ##, ###) and lists (-, *, 1.) where appropriate. Keep the language clear, concise, and tailored for Discord.
 
-Use toolcalls when needed to perform actions or fetch data, for example if you need currently unknown information make a http request using a toolcall to get it. Always think step by step and ensure your responses are relevant and useful to the user.`
+Use tool calls when needed to perform actions or fetch data, for example if you need currently unknown information make a http request using a tool call to get it. Always think step by step and ensure your responses are relevant and useful to the user.`
 
 var client = openai.NewClient(
 	option.WithAPIKey(os.Getenv("API_KEY")),
@@ -94,9 +94,9 @@ func newParams() *openai.ChatCompletionNewParams {
 	}
 }
 
-// TODO: toolcall to execute shell command
+// TODO: tool call to execute shell command
 
-var toolcallHandlers = map[string]func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string{
+var toolCallHandlers = map[string]func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string{
 	"set_status": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
 		status := args["status"].(string)
 		s.UpdateCustomStatus(status)
@@ -115,8 +115,10 @@ var toolcallHandlers = map[string]func(s *discordgo.Session, m *discordgo.Messag
 		return "Username updated successfully."
 	},
 	"http_request": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
-		// TODO: confirm url with buttons
 		url := args["url"].(string)
+		if !confirmAction(s, m.ChannelID, "Make HTTP request to "+url+"?") {
+			return "Request cancelled by user."
+		}
 		resp, err := http.Get(url)
 		if err != nil {
 			log.Error("error making HTTP request: ", err.Error())
@@ -183,25 +185,28 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 	return acc
 }
 
-func toolcallHandler(params *openai.ChatCompletionNewParams, toolCalls []openai.ChatCompletionMessageToolCall, s *discordgo.Session, m *discordgo.MessageCreate) {
+func toolCallHandler(params *openai.ChatCompletionNewParams, toolCalls []openai.ChatCompletionMessageToolCall, s *discordgo.Session, m *discordgo.MessageCreate) {
 	for _, toolCall := range toolCalls {
 		var args map[string]any
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			log.Error("error unmarshalling toolcall arguments: ", err)
+			log.Error("error unmarshalling tool call arguments: ", err)
 			return
 		}
 
-		log.Info("toolcall: ", toolCall.Function.Name, ", args: ", args)
+		log.Info("tool call: ", toolCall.Function.Name, ", args: ", args)
 
 		toolCallResponse := ""
-		if h, ok := toolcallHandlers[toolCall.Function.Name]; ok {
+		if h, ok := toolCallHandlers[toolCall.Function.Name]; ok {
 			toolCallResponse = h(s, m, args)
 		} else {
-			toolCallResponse = "Error: unknown toolcall " + toolCall.Function.Name
-			log.Error("unknown toolcall: ", toolCall.Function.Name)
+			toolCallResponse = "Error: unknown tool call " + toolCall.Function.Name
+			log.Error("unknown tool call: ", toolCall.Function.Name)
+		}
+		if len(toolCallResponse) > 1000 {
+			toolCallResponse = toolCallResponse[:1000]
 		}
 
-		log.Info("toolcall response: ", toolCallResponse)
+		log.Info("tool call response: ", toolCallResponse)
 
 		params.Messages = append(params.Messages, openai.ToolMessage(toolCallResponse, toolCall.ID))
 	}
@@ -218,7 +223,7 @@ func createCompletion(params *openai.ChatCompletionNewParams, s *discordgo.Sessi
 
 	toolCalls := completion.Choices[0].Message.ToolCalls
 	if len(toolCalls) > 0 {
-		toolcallHandler(params, toolCalls, s, m)
+		toolCallHandler(params, toolCalls, s, m)
 		return
 	}
 }

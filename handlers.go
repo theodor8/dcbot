@@ -52,15 +52,15 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	log.Infof("interaction received by %v: %v", i.Member.User.Username, i.ApplicationCommandData().Name)
+	log.Infof("interaction received by %v", i.Member.User.Username)
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
 			h(s, i)
 		}
-	// case discordgo.InteractionMessageComponent:
-	// 	if h, ok := componentsHandlers[i.MessageComponentData().CustomID]; ok {
-	// 		h(s, i)
-	// 	}
+	case discordgo.InteractionMessageComponent:
+		if h, ok := componentHandlers[i.MessageComponentData().CustomID]; ok {
+			h(s, i)
+		}
 	}
 }

@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -57,20 +59,117 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 		for _, opt := range options {
 			optionMap[opt.Name] = opt
 		}
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		})
 
 		cmd := optionMap["cmd"].StringValue()
+		if !confirmAction(s, i.ChannelID, "Execute command `"+cmd+"`?") {
+			out := "Command execution canceled."
+			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+				Content: &out,
+			})
+			return
+		}
 		out, err := execCommand(cmd)
 		if err != nil {
 			log.Error("error executing command: ", err.Error())
 		}
+		out = "```\n" + out + "\n```"
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: &out,
+		})
 
+	},
+}
+
+var componentHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
+	"confirm_action": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Type: discordgo.InteractionResponseUpdateMessage,
 			Data: &discordgo.InteractionResponseData{
-				Content: "```\n" + string(out) + "\n```",
+				Content:    "Action confirmed ✅",
 			},
 		})
+		go func() {
+			<-time.After(1 * time.Second)
+			err := s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
+			if err != nil {
+				log.Error("error deleting confirmation message: ", err)
+			}
+		}()
+
+		confirmedActions.Lock()
+		if ch, ok := confirmedActions.actions[i.Message.ID]; ok {
+			ch <- true
+			close(ch)
+			delete(confirmedActions.actions, i.Message.ID)
+		} else {
+			log.Warn("no confirmation channel found for message ID: ", i.Message.ID)
+		}
+		confirmedActions.Unlock()
 	},
+	"cancel_action": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseUpdateMessage,
+			Data: &discordgo.InteractionResponseData{
+				Content:    "Action canceled ❌",
+			},
+		})
+		go func() {
+			<-time.After(1 * time.Second)
+			err := s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
+			if err != nil {
+				log.Error("error deleting confirmation message: ", err)
+			}
+		}()
+
+		confirmedActions.Lock()
+		if ch, ok := confirmedActions.actions[i.Message.ID]; ok {
+			ch <- false
+			close(ch)
+			delete(confirmedActions.actions, i.Message.ID)
+		} else {
+			log.Warn("no confirmation channel found for message ID: ", i.Message.ID)
+		}
+		confirmedActions.Unlock()
+	},
+}
+
+var confirmedActions = struct {
+	sync.RWMutex
+	actions map[string]chan bool
+}{actions: make(map[string]chan bool)}
+
+func confirmAction(s *discordgo.Session, channelID string, action string) bool {
+	st, err := s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+		Content: action,
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					discordgo.Button{
+						Label:    "Confirm",
+						Style:    discordgo.SuccessButton,
+						CustomID: "confirm_action",
+					},
+					discordgo.Button{
+						Label:    "Cancel",
+						Style:    discordgo.DangerButton,
+						CustomID: "cancel_action",
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.Error("error sending confirmation message: ", err)
+		return false
+	}
+	confirmedActions.Lock()
+	confirmedActions.actions[st.ID] = make(chan bool)
+	confirmedActions.Unlock()
+
+	return <-confirmedActions.actions[st.ID]
 }
 
 func execCommand(command string) (string, error) {
