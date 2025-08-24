@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -22,7 +25,7 @@ You are a Discord bot. You should answer questions and provide information on va
 - ` + "```\ncode block\n```" + ` for longer code examples or snippets
 Structure the response clearly using headings (#, ##, ###) and lists (-, *, 1.) where appropriate. Keep the language clear, concise, and tailored for Discord.
 
-Use toolcalls when needed to perform actions or fetch data (http requests). Always think step by step and ensure your responses are relevant and useful to the user.`
+Use toolcalls when needed to perform actions or fetch data, for example if you need currently unknown information make a http request using a toolcall to get it. Always think step by step and ensure your responses are relevant and useful to the user.`
 
 var client = openai.NewClient(
 	option.WithAPIKey(os.Getenv("API_KEY")),
@@ -36,12 +39,6 @@ func newParams() *openai.ChatCompletionNewParams {
 			openai.SystemMessage(systemMessage),
 		},
 		Tools: []openai.ChatCompletionToolParam{
-			{
-				Function: openai.FunctionDefinitionParam{
-					Name:        "do_nothing",
-					Description: openai.String("Do nothing"),
-				},
-			},
 			{
 				Function: openai.FunctionDefinitionParam{
 					Name:        "set_status",
@@ -97,6 +94,45 @@ func newParams() *openai.ChatCompletionNewParams {
 	}
 }
 
+// TODO: toolcall to execute shell command
+
+var toolcallHandlers = map[string]func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string{
+	"set_status": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
+		status := args["status"].(string)
+		s.UpdateCustomStatus(status)
+		return "Status updated successfully."
+	},
+	"get_sender_username": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
+		return m.Author.Username
+	},
+	"set_username": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
+		username := args["username"].(string)
+		_, err := s.UserUpdate(username, "")
+		if err != nil {
+			log.Error("error updating username: ", err)
+			return "Error updating username: " + err.Error()
+		}
+		return "Username updated successfully."
+	},
+	"http_request": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
+		// TODO: confirm url with buttons
+		url := args["url"].(string)
+		resp, err := http.Get(url)
+		if err != nil {
+			log.Error("error making HTTP request: ", err.Error())
+			return "Error making HTTP request: " + err.Error()
+		}
+		defer resp.Body.Close()
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Error("error reading HTTP response: ", err.Error())
+			return "Error reading HTTP response: " + err.Error()
+		}
+		return string(bodyBytes)
+	},
+}
+
 func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) openai.ChatCompletionAccumulator {
 	stream := client.Chat.Completions.NewStreaming(context.TODO(), *params)
 	acc := openai.ChatCompletionAccumulator{}
@@ -147,6 +183,32 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 	return acc
 }
 
+func toolcallHandler(params *openai.ChatCompletionNewParams, toolCalls []openai.ChatCompletionMessageToolCall, s *discordgo.Session, m *discordgo.MessageCreate) {
+	for _, toolCall := range toolCalls {
+		var args map[string]any
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			log.Error("error unmarshalling toolcall arguments: ", err)
+			return
+		}
+
+		log.Info("toolcall: ", toolCall.Function.Name, ", args: ", args)
+
+		toolCallResponse := ""
+		if h, ok := toolcallHandlers[toolCall.Function.Name]; ok {
+			toolCallResponse = h(s, m, args)
+		} else {
+			toolCallResponse = "Error: unknown toolcall " + toolCall.Function.Name
+			log.Error("unknown toolcall: ", toolCall.Function.Name)
+		}
+
+		log.Info("toolcall response: ", toolCallResponse)
+
+		params.Messages = append(params.Messages, openai.ToolMessage(toolCallResponse, toolCall.ID))
+	}
+
+	createCompletion(params, s, m)
+}
+
 func createCompletion(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) {
 	completion := startStreaming(params, s, m)
 
@@ -156,7 +218,7 @@ func createCompletion(params *openai.ChatCompletionNewParams, s *discordgo.Sessi
 
 	toolCalls := completion.Choices[0].Message.ToolCalls
 	if len(toolCalls) > 0 {
-		toolCallsHandler(params, toolCalls, s, m)
+		toolcallHandler(params, toolCalls, s, m)
 		return
 	}
 }
