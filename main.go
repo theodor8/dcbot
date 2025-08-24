@@ -32,12 +32,7 @@ func init() {
 	log.Info("created Discord session")
 
 	s.AddHandler(messageCreate)
-	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-		log.Infof("interaction received by %v: %v", i.Member.User.Username, i.ApplicationCommandData().Name)
-		if handler, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
-			handler(s, i)
-		}
-	})
+	s.AddHandler(interactionCreate)
 	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})

@@ -20,7 +20,9 @@ You are a Discord bot. You should answer questions and provide information on va
 - ` + "`> quote`" + ` to highlight specific parts
 - ` + "`` `code` ``" + ` for inline code snippets or commands
 - ` + "```\ncode block\n```" + ` for longer code examples or snippets
-Structure the response clearly using headings (#, ##, ###) and lists (-, *, 1.) where appropriate. Keep the language clear, concise, and tailored for Discord.`
+Structure the response clearly using headings (#, ##, ###) and lists (-, *, 1.) where appropriate. Keep the language clear, concise, and tailored for Discord.
+
+Use toolcalls when needed to perform actions or fetch data (http requests). Always think step by step and ensure your responses are relevant and useful to the user.`
 
 var client = openai.NewClient(
 	option.WithAPIKey(os.Getenv("API_KEY")),
@@ -74,6 +76,21 @@ func newParams() *openai.ChatCompletionNewParams {
 				Function: openai.FunctionDefinitionParam{
 					Name:        "get_sender_username",
 					Description: openai.String("Get the username of the sender"),
+				},
+			},
+			{
+				Function: openai.FunctionDefinitionParam{
+					Name:        "http_request",
+					Description: openai.String("Make an HTTP request"),
+					Parameters: openai.FunctionParameters{
+						"type": "object",
+						"properties": map[string]any{
+							"url": map[string]string{
+								"type": "string",
+							},
+						},
+						"required": []string{"url"},
+					},
 				},
 			},
 		},

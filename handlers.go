@@ -50,3 +50,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	createCompletion(params, s, m)
 }
+
+func interactionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	log.Infof("interaction received by %v: %v", i.Member.User.Username, i.ApplicationCommandData().Name)
+	switch i.Type {
+	case discordgo.InteractionApplicationCommand:
+		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
+			h(s, i)
+		}
+	// case discordgo.InteractionMessageComponent:
+	// 	if h, ok := componentsHandlers[i.MessageComponentData().CustomID]; ok {
+	// 		h(s, i)
+	// 	}
+	}
+}

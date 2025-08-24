@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -21,7 +23,7 @@ func toolCallsHandler(params *openai.ChatCompletionNewParams, toolCalls []openai
 		toolCallResponse := ""
 
 		// TODO: toolcall to execute shell command
-		// TODO: toolcall to browse web
+		// TODO: make map with toolcall handlers
 
 		switch toolCall.Function.Name {
 		case "do_nothing":
@@ -36,9 +38,27 @@ func toolCallsHandler(params *openai.ChatCompletionNewParams, toolCalls []openai
 			username := args["username"].(string)
 			s.UserUpdate(username, "")
 			toolCallResponse = "Username updated successfully."
+		case "http_request":
+			// TODO: confirm url with buttons
+			url := args["url"].(string)
+			resp, err := http.Get(url)
+			if err != nil {
+				toolCallResponse = "Error making HTTP request: " + err.Error()
+				log.Error("error making HTTP request: ", err)
+				break
+			}
+			defer resp.Body.Close()
+
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				toolCallResponse = "Error reading HTTP response: " + err.Error()
+				log.Error("error reading HTTP response: ", err)
+				break
+			}
+			toolCallResponse = string(bodyBytes)
 		default:
 			toolCallResponse = "Unknown tool call"
-			log.Error("error: unknown tool call:", toolCall.Function.Name)
+			log.Error("unknown tool call:", toolCall.Function.Name)
 		}
 
 		log.Info("toolcall response: ", toolCallResponse)

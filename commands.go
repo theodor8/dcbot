@@ -67,13 +67,14 @@ var commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.Interac
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "```\n" + err.Error() + "\n" + string(out) + "\n```",
+				Content: "```\n" + string(out) + "\n```",
 			},
 		})
 	},
 }
 
 func execCommand(command string) (string, error) {
+	// TODO: make executing commands work with docker containers
 	cmd := exec.Command("bash", "-c", command)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
