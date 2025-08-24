@@ -90,11 +90,24 @@ func newParams() *openai.ChatCompletionNewParams {
 					},
 				},
 			},
+			{
+				Function: openai.FunctionDefinitionParam{
+					Name:        "exec",
+					Description: openai.String("Execute a shell command."),
+					Parameters: openai.FunctionParameters{
+						"type": "object",
+						"properties": map[string]any{
+							"cmd": map[string]string{
+								"type": "string",
+							},
+						},
+						"required": []string{"cmd"},
+					},
+				},
+			},
 		},
 	}
 }
-
-// TODO: tool call to execute shell command
 
 var toolCallHandlers = map[string]func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string{
 	"set_status": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
@@ -133,6 +146,18 @@ var toolCallHandlers = map[string]func(s *discordgo.Session, m *discordgo.Messag
 		}
 		return string(bodyBytes)
 	},
+	"exec": func(s *discordgo.Session, m *discordgo.MessageCreate, args map[string]any) string {
+		cmd := args["cmd"].(string)
+		if !confirmAction(s, m.ChannelID, "Execute command `"+cmd+"`?") {
+			return "Command execution cancelled by user."
+		}
+		output, err := execCommand(cmd)
+		if err != nil {
+			log.Error("error executing command: ", err.Error())
+			return "Error executing command: " + err.Error()
+		}
+		return output
+	},
 }
 
 func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) openai.ChatCompletionAccumulator {
@@ -156,7 +181,7 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 		if err != nil {
 			log.Error("error sending message: ", err)
 		}
-		ticker = time.NewTicker(800 * time.Millisecond)
+		ticker = time.NewTicker(700 * time.Millisecond)
 		go func() {
 			editMessage := func() {
 				message, err = s.ChannelMessageEdit(m.ChannelID, message.ID, acc.Choices[0].Message.Content)
@@ -167,11 +192,11 @@ func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session
 			for {
 				select {
 				case <-done:
-					editMessage()
+					go editMessage()
 					ticker.Stop()
 					return
 				case <-ticker.C:
-					editMessage()
+					go editMessage()
 				}
 			}
 		}()
