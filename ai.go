@@ -80,25 +80,7 @@ func newParams() *openai.ChatCompletionNewParams {
 	}
 }
 
-type getUserBalanceResponse struct {
-	BalanceInfos []struct {
-		Currency     string `json:"currency"`
-		TotalBalance string `json:"total_balance"`
-	} `json:"balance_infos"`
-}
-
-func getUserBalance() string {
-	res := &getUserBalanceResponse{}
-	err := client.Get(context.TODO(), os.Getenv("URL")+"user/balance", nil, &res)
-	if err != nil {
-		log.Error("error getting user balance: ", err)
-		return "Error fetching balance"
-	}
-	return res.BalanceInfos[0].TotalBalance + " " + res.BalanceInfos[0].Currency
-}
-
 func startStreaming(params *openai.ChatCompletionNewParams, s *discordgo.Session, m *discordgo.MessageCreate) openai.ChatCompletionAccumulator {
-	// TODO: refactor
 	stream := client.Chat.Completions.NewStreaming(context.TODO(), *params)
 	acc := openai.ChatCompletionAccumulator{}
 	var message *discordgo.Message = nil

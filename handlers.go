@@ -27,6 +27,8 @@ func addChannelMessages(params *openai.ChatCompletionNewParams, s *discordgo.Ses
 		}
 	}
 
+	// TODO: add slash commands to params
+
 	return nil
 }
 
@@ -36,7 +38,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	log.Info("message received by: ", m.Author.Username)
+	log.Info("message received by ", m.Author.Username, ": ", m.Content)
 
 	params := newParams()
 	if err := addChannelMessages(params, s, m, 20); err != nil {

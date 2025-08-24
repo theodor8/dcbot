@@ -20,6 +20,9 @@ func toolCallsHandler(params *openai.ChatCompletionNewParams, toolCalls []openai
 
 		toolCallResponse := ""
 
+		// TODO: toolcall to execute shell command
+		// TODO: toolcall to browse web
+
 		switch toolCall.Function.Name {
 		case "do_nothing":
 			toolCallResponse = "No action taken."
